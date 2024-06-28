@@ -6,11 +6,9 @@ use axum::Router;
 use axum::{extract::State, response::Redirect};
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::{CookieJar, PrivateCookieJar};
-use openidconnect::core::{CoreGenderClaim, CoreResponseType};
-use openidconnect::reqwest::async_http_client;
-use openidconnect::{AuthorizationCode, CsrfToken, Nonce, OAuth2TokenResponse, Scope};
+use openidconnect::core::CoreResponseType;
+use openidconnect::{AuthorizationCode, CsrfToken, Nonce, Scope};
 
-use crate::additional_claims::AllOtherClaims;
 use crate::cookie::AuthTokenCookie;
 use crate::AppState;
 
@@ -191,7 +189,7 @@ async fn authorize(
     let token_response = state
         .client
         .exchange_code(authz_state.code)
-        .request_async(async_http_client)
+        .request_async(|v| state.async_http_client(v))
         .await;
     let token = match token_response {
         Ok(token) => token,
@@ -205,53 +203,55 @@ async fn authorize(
         }
     };
 
-    let access_token = token.access_token();
+    // let access_token = token.access_token();
 
-    tracing::info!("Received access token: {:?}", token);
+    // tracing::info!("Received access token: {:?}", token);
 
-    let id_token = match token.extra_fields().id_token() {
-        Some(id_token) => id_token,
-        None => {
-            return error_as_human(state, "auth server did not return an ID token").into_response()
-        }
-    };
+    // let id_token = match token.extra_fields().id_token() {
+    //     Some(id_token) => id_token,
+    //     None => {
+    //         return error_as_human(state, "auth server did not return an ID token").into_response()
+    //     }
+    // };
 
-    let id_token_verifier = state.client.id_token_verifier();
-    let id_token_claims = id_token.claims(&id_token_verifier, &nonce);
-    drop(id_token_verifier);
+    // let id_token_verifier = state.client.id_token_verifier();
+    // let id_token_claims = id_token.claims(&id_token_verifier, &nonce);
+    // drop(id_token_verifier);
 
-    let claims = match id_token_claims {
-        Ok(claims) => claims,
-        Err(why) => {
-            return error_as_human_ctx(state, "failed to verify ID token", &why).into_response()
-        }
-    };
+    // let claims = match id_token_claims {
+    //     Ok(claims) => claims,
+    //     Err(why) => {
+    //         return error_as_human_ctx(state, "failed to verify ID token", &why).into_response()
+    //     }
+    // };
 
-    tracing::info!("Received ID token: {:?}", claims);
+    // tracing::info!("Received ID token: {:?}", claims);
 
-    let user_info_request = state.client.user_info(access_token.clone(), None);
-    let user_info_request = match user_info_request {
-        Ok(user_info_request) => user_info_request,
-        Err(why) => {
-            return error_as_human_ctx(state, "failed to create user info request", &why)
-                .into_response()
-        }
-    };
-    let user_info_response = user_info_request.request_async(async_http_client).await;
-    let user_info: openidconnect::UserInfoClaims<AllOtherClaims, CoreGenderClaim> =
-        match user_info_response {
-            Ok(user_info) => user_info,
-            Err(why) => {
-                return error_as_human_ctx(
-                    state,
-                    "failed to fetch user info from auth server",
-                    &why,
-                )
-                .into_response()
-            }
-        };
+    // let user_info_request = state.client.user_info(access_token.clone(), None);
+    // let user_info_request = match user_info_request {
+    //     Ok(user_info_request) => user_info_request,
+    //     Err(why) => {
+    //         return error_as_human_ctx(state, "failed to create user info request", &why)
+    //             .into_response()
+    //     }
+    // };
+    // let user_info_response = user_info_request
+    //     .request_async(|v| state.async_http_client(v))
+    //     .await;
+    // let user_info: openidconnect::UserInfoClaims<AllOtherClaims, CoreGenderClaim> =
+    //     match user_info_response {
+    //         Ok(user_info) => user_info,
+    //         Err(why) => {
+    //             return error_as_human_ctx(
+    //                 state,
+    //                 "failed to fetch user info from auth server",
+    //                 &why,
+    //             )
+    //             .into_response()
+    //         }
+    //     };
 
-    tracing::info!("Received user info: {:?}", user_info);
+    // tracing::info!("Received user info: {:?}", user_info);
 
     // Now we have a valid access token.
     // Save that into a cookie,

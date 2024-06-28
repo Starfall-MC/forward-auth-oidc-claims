@@ -9,7 +9,6 @@ use axum::{
 };
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::PrivateCookieJar;
-use openidconnect::reqwest::async_http_client;
 use openidconnect::Nonce;
 
 use crate::cookie::AuthTokenCookie;
@@ -47,7 +46,7 @@ pub async fn check_token(
                 }
 
                 Ok(token) => {
-                    tracing::info!("token validated: {:?}", token);
+                    tracing::debug!("token validated: {:?}", token);
 
                     // If the token is not expired, return OK
                     // Otherwise, try refreshing it
@@ -125,7 +124,7 @@ async fn try_refreshing_token(
     match state
         .client
         .exchange_refresh_token(&refresh_token)
-        .request_async(async_http_client)
+        .request_async(|v| state.async_http_client(v))
         .await
     {
         Err(why) => {

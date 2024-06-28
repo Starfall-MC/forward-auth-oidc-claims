@@ -26,6 +26,37 @@ pub struct AppState {
     pub cookie_path: String,
 
     pub claim_mapping: HashMap<String, String>,
+
+    pub http_client: reqwest::Client,
+}
+
+impl AppState {
+    pub async fn async_http_client(
+        &self,
+        request: openidconnect::HttpRequest,
+    ) -> Result<openidconnect::HttpResponse, openidconnect::reqwest::Error<reqwest::Error>> {
+        use openidconnect::reqwest::Error;
+        let client = &self.http_client;
+
+        let mut request_builder = client
+            .request(request.method, request.url.as_str())
+            .body(request.body);
+        for (name, value) in &request.headers {
+            request_builder = request_builder.header(name.as_str(), value.as_bytes());
+        }
+        let request = request_builder.build().map_err(Error::Reqwest)?;
+
+        let response = client.execute(request).await.map_err(Error::Reqwest)?;
+
+        let status_code = response.status();
+        let headers = response.headers().to_owned();
+        let chunks = response.bytes().await.map_err(Error::Reqwest)?;
+        Ok(openidconnect::HttpResponse {
+            status_code,
+            headers,
+            body: chunks.to_vec(),
+        })
+    }
 }
 
 impl FromRef<AppState> for Key {
@@ -108,6 +139,16 @@ async fn main() {
                     .expect("invalid redirect url attempted"),
             );
 
+    let http_client = {
+        let builder = reqwest::Client::builder();
+
+        // Following redirects opens the client up to SSRF vulnerabilities.
+        // but this is not possible to prevent on wasm targets
+        let builder = builder.redirect(reqwest::redirect::Policy::none());
+
+        builder.build().expect("failed to build http client")
+    };
+
     let app_state = AppState {
         client,
         app_url: args.url,
@@ -118,6 +159,7 @@ async fn main() {
         cookie_path: args.cookie_path,
 
         claim_mapping,
+        http_client,
     };
 
     let app: Router = axum::Router::new()
