@@ -54,7 +54,10 @@ pub async fn check_token(
                     // Otherwise, try refreshing it
                     let expiration: SystemTime = token.claims.expiration().into();
                     if expiration.elapsed().is_ok() {
-                        // token is expired, refresh it
+                        tracing::debug!(
+                            "Token is expired: {:?}, trying to refresh it",
+                            expiration.elapsed()
+                        );
                         match try_refreshing_token(&state, &token, &nonce, &mut headers).await {
                             Some(token) => {
                                 let cookie_prefix = state.cookie_prefix.clone();
@@ -94,6 +97,10 @@ pub async fn check_token(
         headers.insert("X-Token-Error", HeaderValue::from_static("Nonce not found"));
     }
 
+    tracing::debug!(
+        "Failed to validate token, redir to begin-auth with src_url={:?}",
+        uri
+    );
     // Return a redirect to the begin-auth path
     (
         headers,
@@ -116,6 +123,7 @@ fn header_mappings(state: &AppState, headers: &mut HeaderMap, token: &AuthTokenC
     let claims_str = serde_json::to_string(&token.claims).unwrap();
     tracing::info!("claims: {}", claims_str);
     let claims_map: HashMap<String, Value> = serde_json::from_str(&claims_str).unwrap();
+    let mut missing_items = vec![];
 
     for (claim_name, header_name) in state.claim_mapping.iter() {
         if let Some(value) = claims_map.get(claim_name) {
@@ -123,7 +131,20 @@ fn header_mappings(state: &AppState, headers: &mut HeaderMap, token: &AuthTokenC
                 header_name,
                 HeaderValue::from_str(&serde_json::to_string(value).unwrap()).unwrap(),
             );
+        } else {
+            tracing::warn!(
+                "claim not found: {:?}, skipping adding header {header_name}",
+                claim_name
+            );
+            missing_items.push(header_name);
         }
+    }
+
+    if !missing_items.is_empty() {
+        headers.insert(
+            "X-Headers-With-Missing-Claims",
+            HeaderValue::from_str(&format!("{:?}", missing_items)).unwrap(),
+        );
     }
 }
 
@@ -145,7 +166,6 @@ async fn try_refreshing_token(
         }
     };
 
-    // TODO: replace this with a global client
     match state
         .client
         .exchange_refresh_token(refresh_token)

@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whoami-auth-fwauth
+  namespace: whoamis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whoami-auth-fwauth
+  template:
+    metadata:
+      labels:
+        app: whoami-auth-fwauth
+    spec:
+      containers:
+      - name: whoami-auth-fwauth
+        image: registry-starfallmc.danya02.ru/forward-auth-oidc:v1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        command:
+          - ./forward-auth-oidc-claims
+          - -i
+          - /secrets/client-id
+          - -s
+          - /secrets/client-secret
+          - -u
+          - https://auth.starfallmc.space/realms/master
+          - --url
+          - https://whoami-auth.starfallmc.space
+          - -k
+          - /secrets/cookie-key
+          - -m
+          - email:X-User-Email
+          - -m
+          - discord_id:X-Discord-Id
+          - -S
+          - openid
+          - -S
+          - email
+          - -S
+          - profile
+          - -S
+          - discord_id
+        env:
+          - name: RUST_BACKTRACE
+            value: "1"
+          - name: RUST_LOG
+            value: "debug"
+        volumeMounts:
+          - name: secrets
+            mountPath: /secrets
+      volumes:
+        - name: secrets
+          secret:
+            secretName: whoami-auth-fwauth
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whoami-auth-fwauth
+  namespace: whoamis
+spec:
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+  selector:
+    app: whoami-auth-fwauth
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: whoami-auth-fwauth
+  namespace: whoamis
+spec:
+  forwardAuth:
+    address: http://whoami-auth-fwauth.whoamis.svc.cluster.local
+    authResponseHeadersRegex: ^X-
+    authResponseHeaders:
+      - X-User-Email
+      - X-Discord-Id
+    addAuthCookiesToResponse:
+      - _oidc_client_src_url
+      - _oidc_client_csrf
+      - _oidc_client_nonce
+      - _oidc_client_token

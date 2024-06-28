@@ -47,4 +47,8 @@ pub struct Args {
     /// Claim mapping: like email:X-Client-Email. Can be specified multiple times
     #[clap(long = "claim-mapping", short = 'm', action = clap::ArgAction::Append)]
     pub claim_mapping: Vec<String>,
+
+    /// Which scopes to request from the identity provider (start with openid). Can be specified multiple times
+    #[clap(long = "scope", short = 'S', action = clap::ArgAction::Append)]
+    pub scopes: Vec<String>,
 }

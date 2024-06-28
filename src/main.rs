@@ -1,8 +1,14 @@
 use std::{collections::HashMap, str::FromStr};
 
 use additional_claims::CoreClientWithClaims;
-use axum::{extract::FromRef, http::HeaderName, routing::any, Router};
-use axum_extra::extract::cookie::Key;
+use axum::{
+    extract::{FromRef, Query, State},
+    http::{uri::PathAndQuery, HeaderMap, HeaderName, Uri},
+    response::IntoResponse,
+    routing::any,
+    Router,
+};
+use axum_extra::extract::{cookie::Key, PrivateCookieJar};
 use clap::Parser;
 use openidconnect::{
     core::CoreProviderMetadata, reqwest::async_http_client, ClientId, ClientSecret, IssuerUrl,
@@ -20,6 +26,7 @@ pub struct AppState {
     pub client: CoreClientWithClaims,
     pub app_url: String,
     pub oidc_path: String,
+    pub scopes: Vec<String>,
 
     pub cookie_key: Key,
     pub cookie_prefix: String,
@@ -154,6 +161,7 @@ async fn main() {
         client,
         app_url: args.url,
         oidc_path: args.oidc_path.clone(),
+        scopes: args.scopes,
 
         cookie_key,
         cookie_prefix: args.cookie_prefix,
@@ -164,8 +172,9 @@ async fn main() {
     };
 
     let app: Router = axum::Router::new()
-        .nest(&args.oidc_path, oidc_flow::make_router())
-        .fallback(any(validate::check_token))
+        // .nest(&args.oidc_path, oidc_flow::make_router())
+        // .fallback(any(validate::check_token))
+        .fallback(any(dispatch))
         .with_state(app_state)
         // add logging
         .layer(
@@ -182,4 +191,48 @@ async fn main() {
     )
     .await
     .expect("failed to serve HTTP");
+}
+
+async fn dispatch(
+    State(app_state): State<AppState>,
+    jar: PrivateCookieJar,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let x_forwarded_uri = headers
+        .get("X-Forwarded-Uri")
+        .map(|v| v.to_str().unwrap_or(""))
+        .unwrap_or("/");
+
+    let uri = Uri::from_str(x_forwarded_uri).unwrap_or(Uri::default());
+    tracing::debug!("X-Forwarded-Uri: {}", uri);
+
+    // Ensure that there's only path in the URI
+    let uri = Uri::builder()
+        .path_and_query(
+            uri.path_and_query()
+                .unwrap_or(&PathAndQuery::from_static("/"))
+                .clone(),
+        )
+        .build()
+        .unwrap_or_default();
+
+    tracing::debug!("Normalized X-Forwarded-Uri: {}", uri);
+
+    // If the URI's path starts with the OIDC path, strip it,
+    // then dispatch it to the OIDC flow.
+    if uri.path().starts_with(&app_state.oidc_path) {
+        tracing::debug!("Dispatching into OIDC flow");
+        return oidc_flow::dispatch(
+            State(app_state),
+            jar,
+            Query::try_from_uri(&uri).expect("failed to parse query"),
+        )
+        .await;
+    }
+
+    // Otherwise, just validate the token
+    tracing::debug!("Dispatching into validation");
+    validate::check_token(State(app_state), jar, uri)
+        .await
+        .into_response()
 }
