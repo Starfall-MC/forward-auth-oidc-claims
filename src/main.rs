@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use additional_claims::CoreClientWithClaims;
 use axum::{extract::FromRef, routing::any, Router};
 use axum_extra::extract::cookie::Key;
@@ -9,6 +11,7 @@ use openidconnect::{
 use tokio::net::TcpListener;
 mod additional_claims;
 mod args;
+mod cookie;
 mod oidc_flow;
 pub mod validate;
 
@@ -20,6 +23,9 @@ pub struct AppState {
 
     pub cookie_key: Key,
     pub cookie_prefix: String,
+    pub cookie_path: String,
+
+    pub claim_mapping: HashMap<String, String>,
 }
 
 impl FromRef<AppState> for Key {
@@ -33,6 +39,25 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let args = args::Args::parse();
+
+    // Parse the claim mapping
+    let mut claim_mapping = HashMap::new();
+    for item in args.claim_mapping {
+        let mut parts = item.splitn(2, ':');
+        let claim = parts.next().unwrap();
+        let header = parts
+            .next()
+            .expect("Must have two parts: first is claim name, second is header name");
+        claim_mapping.insert(claim.to_string(), header.to_string());
+    }
+
+    if claim_mapping.is_empty() {
+        tracing::warn!("no claim mapping provided! Will not add any headers describing the user, this only works in access control mode");
+    } else {
+        for (claim, header) in &claim_mapping {
+            tracing::info!("claim mapping: claim {} -> header {}", claim, header);
+        }
+    }
 
     // Fetch the OIDC client ID and secret
     let client_id = tokio::fs::read_to_string(&args.oidc_client_id_path)
@@ -90,12 +115,21 @@ async fn main() {
 
         cookie_key,
         cookie_prefix: args.cookie_prefix,
+        cookie_path: args.cookie_path,
+
+        claim_mapping,
     };
 
     let app: Router = axum::Router::new()
         .nest(&args.oidc_path, oidc_flow::make_router())
         .fallback(any(validate::check_token))
-        .with_state(app_state);
+        .with_state(app_state)
+        // add logging
+        .layer(
+            tower_http::trace::TraceLayer::new_for_http().make_span_with(
+                tower_http::trace::DefaultMakeSpan::default().level(tracing::Level::DEBUG),
+            ),
+        );
 
     axum::serve(
         TcpListener::bind(args.http_listen)

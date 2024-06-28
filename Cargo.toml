@@ -6,11 +6,16 @@ edition = "2021"
 [dependencies]
 axum = "0.7.5"
 axum-extra = { version = "0.9.3", features = ["cookie", "cookie-private"] }
+base64 = "0.22.1"
 clap = { version = "4.5.7", features = ["derive"] }
+deflate = "1.0.0"
+inflate = "0.4.5"
 openidconnect = "3.5.0"
 reqwest = "0.12.5"
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.118"
 tokio = { version = "1.38.0", features = ["full"] }
+tower-http = { version = "0.5.2", features = ["trace"] }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
+urlencoding = "2.1.3"

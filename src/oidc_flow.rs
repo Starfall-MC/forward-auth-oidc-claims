@@ -11,6 +11,7 @@ use openidconnect::reqwest::async_http_client;
 use openidconnect::{AuthorizationCode, CsrfToken, Nonce, OAuth2TokenResponse, Scope};
 
 use crate::additional_claims::AllOtherClaims;
+use crate::cookie::AuthTokenCookie;
 use crate::AppState;
 
 pub fn make_router() -> axum::Router<AppState> {
@@ -20,9 +21,20 @@ pub fn make_router() -> axum::Router<AppState> {
         .route("/authorize", get(authorize))
 }
 
+#[derive(serde::Deserialize)]
+struct BeginAuthQuery {
+    #[serde(default = "default_src_url")]
+    pub src_url: String,
+}
+
+fn default_src_url() -> String {
+    "/".to_string()
+}
+
 async fn begin_auth(
     State(app_state): State<AppState>,
     jar: PrivateCookieJar,
+    Query(BeginAuthQuery { src_url }): Query<BeginAuthQuery>,
 ) -> (PrivateCookieJar, impl IntoResponse) {
     // Build the authorization URL
     let (auth_url, csrf_state, nonce) = app_state
@@ -38,11 +50,14 @@ async fn begin_auth(
         .add_scope(Scope::new("discord_id".to_string()))
         .url();
 
+    let cookie_path = app_state.cookie_path.clone();
     let make_cookie = |name, value: &String| {
-        Cookie::new(
+        Cookie::build(Cookie::new(
             format!("{}{name}", app_state.cookie_prefix),
             value.to_owned(),
-        )
+        ))
+        .path(cookie_path.clone())
+        .build()
     };
 
     let make_cookie_only_name = |name| Cookie::from(format!("{}{name}", app_state.cookie_prefix));
@@ -50,8 +65,10 @@ async fn begin_auth(
     // Save the CSRF and nonce into the cookie jar
     let jar = jar.remove(make_cookie_only_name("csrf"));
     let jar = jar.remove(make_cookie_only_name("nonce"));
+    let jar = jar.remove(make_cookie_only_name("src_url"));
     let jar = jar.add(make_cookie("csrf", csrf_state.secret()));
     let jar = jar.add(make_cookie("nonce", nonce.secret()));
+    let jar = jar.add(make_cookie("src_url", &src_url));
 
     // Redirect the user to the authorization URL
     (jar, Redirect::to(auth_url.as_str()))
@@ -65,8 +82,8 @@ struct AuthState {
 
 fn cookie_wipeout(state: AppState) -> CookieJar {
     let mut jar = CookieJar::new();
-    // Set the csrf, nonce and token cookies to be deleted
-    for name in ["csrf", "nonce", "token"] {
+    // Set the used cookies to be deleted
+    for name in ["csrf", "nonce", "token", "src_url"] {
         jar = jar.add(
             Cookie::build(format!("{}{name}", state.cookie_prefix))
                 .removal()
@@ -146,6 +163,10 @@ async fn authorize(
 
     let csrf = jar.get(&cookie_name("csrf"));
     let nonce = jar.get(&cookie_name("nonce"));
+
+    let src_url = jar
+        .get(&cookie_name("src_url"))
+        .unwrap_or_else(|| Cookie::new("src_url", "/"));
 
     let (csrf, nonce) = match (csrf, nonce) {
         (Some(csrf), Some(nonce)) => (
@@ -232,5 +253,30 @@ async fn authorize(
 
     tracing::info!("Received user info: {:?}", user_info);
 
-    error_as_human(state, "...").into_response()
+    // Now we have a valid access token.
+    // Save that into a cookie,
+    // then redirect back to the original URL.
+
+    let cookie_prefix = state.cookie_prefix.clone();
+    let cookie_path = state.cookie_path.clone();
+    let make_cookie = |name, value: &String| {
+        Cookie::build(Cookie::new(
+            format!("{}{name}", cookie_prefix),
+            value.to_owned(),
+        ))
+        .path(cookie_path)
+        .build()
+    };
+
+    let make_cookie_only_name = |name| Cookie::from(format!("{}{name}", state.cookie_prefix));
+
+    let jar = jar.remove(make_cookie_only_name("csrf"));
+    // let jar = jar.remove(make_cookie_only_name("nonce"));
+    let jar = jar.remove(make_cookie_only_name("src_url"));
+    let jar = jar.add(make_cookie(
+        "token",
+        &AuthTokenCookie::from_token_response(&token, &state, &nonce).to_cookie(),
+    ));
+
+    (jar, Redirect::to(src_url.value())).into_response()
 }

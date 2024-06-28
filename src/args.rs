@@ -37,4 +37,14 @@ pub struct Args {
     /// Prefix to use for the cookie names, so they don't collide with other apps
     #[clap(long = "cookie-prefix", short = 'p', default_value = "_oidc_client_")]
     pub cookie_prefix: String,
+
+    /// Which path to specify for token cookies?
+    /// This must cover the entire application to be protected,
+    /// any other paths will not be able to read this token.
+    #[clap(long = "cookie-path", short = 'P', default_value = "/")]
+    pub cookie_path: String,
+
+    /// Claim mapping: like email:X-Client-Email. Can be specified multiple times
+    #[clap(long = "claim-mapping", short = 'm', action = clap::ArgAction::Append)]
+    pub claim_mapping: Vec<String>,
 }
