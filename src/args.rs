@@ -10,11 +10,11 @@ pub struct Args {
     #[clap(long = "client-secret", short = 's')]
     pub oidc_client_secret_path: PathBuf,
 
-    /// OIDC issuer URL: example https://accounts.google.com, https://gitlab.com
+    /// OIDC issuer URL **without trailing slash**: example https://accounts.google.com, https://gitlab.com
     #[clap(long = "issuer", short = 'u')]
     pub oidc_issuer_url: String,
 
-    /// The URL where this app will be available
+    /// The URL where this app will be available **without trailing slash**: example http://app.example.com
     #[clap(long = "url", short = 'U')]
     pub url: String,
 
@@ -25,4 +25,16 @@ pub struct Args {
     /// Path for internal OIDC operations
     #[clap(long = "oidc-path", short = 'o', default_value = "/_oidc")]
     pub oidc_path: String,
+
+    /// Path to the file with the secret key used to encrypt cookies: needs to be exactly 64 bytes of randomness
+    #[clap(long = "cookie-key", short = 'k')]
+    pub cookie_key_path: PathBuf,
+
+    /// If the cookie file doesn't exist, should I generate it?
+    #[clap(long = "generate-cookie-key", short = 'g')]
+    pub generate_cookie_key: bool,
+
+    /// Prefix to use for the cookie names, so they don't collide with other apps
+    #[clap(long = "cookie-prefix", short = 'p', default_value = "_oidc_client_")]
+    pub cookie_prefix: String,
 }

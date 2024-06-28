@@ -5,10 +5,12 @@ edition = "2021"
 
 [dependencies]
 axum = "0.7.5"
+axum-extra = { version = "0.9.3", features = ["cookie", "cookie-private"] }
 clap = { version = "4.5.7", features = ["derive"] }
 openidconnect = "3.5.0"
 reqwest = "0.12.5"
 serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.118"
 tokio = { version = "1.38.0", features = ["full"] }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
