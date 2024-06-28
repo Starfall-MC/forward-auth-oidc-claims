@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use additional_claims::CoreClientWithClaims;
-use axum::{extract::FromRef, routing::any, Router};
+use axum::{extract::FromRef, http::HeaderName, routing::any, Router};
 use axum_extra::extract::cookie::Key;
 use clap::Parser;
 use openidconnect::{
@@ -25,7 +25,7 @@ pub struct AppState {
     pub cookie_prefix: String,
     pub cookie_path: String,
 
-    pub claim_mapping: HashMap<String, String>,
+    pub claim_mapping: HashMap<String, HeaderName>,
 
     pub http_client: reqwest::Client,
 }
@@ -79,7 +79,8 @@ async fn main() {
         let header = parts
             .next()
             .expect("Must have two parts: first is claim name, second is header name");
-        claim_mapping.insert(claim.to_string(), header.to_string());
+        let header = HeaderName::from_str(header).expect("invalid header name");
+        claim_mapping.insert(claim.to_string(), header);
     }
 
     if claim_mapping.is_empty() {

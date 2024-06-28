@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::SystemTime;
 
 use axum::http::Uri;
@@ -10,6 +11,7 @@ use axum::{
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::PrivateCookieJar;
 use openidconnect::Nonce;
+use serde_json::Value;
 
 use crate::cookie::AuthTokenCookie;
 use crate::AppState;
@@ -67,7 +69,8 @@ pub async fn check_token(
                                 };
 
                                 let jar = jar.add(make_cookie("token", &token.to_cookie()));
-                                return (jar, headers, "OK").into_response();
+                                header_mappings(&state, &mut headers, &token);
+                                return (jar, headers, "OK (refresh)").into_response();
                             }
                             None => {
                                 // we failed to refresh the token,
@@ -75,7 +78,9 @@ pub async fn check_token(
                             }
                         }
                     } else {
-                        return "OK".into_response();
+                        header_mappings(&state, &mut headers, &token);
+
+                        return (headers, "OK").into_response();
                     }
                 }
             }
@@ -100,6 +105,26 @@ pub async fn check_token(
         )),
     )
         .into_response()
+}
+
+fn header_mappings(state: &AppState, headers: &mut HeaderMap, token: &AuthTokenCookie) {
+    // FIXME: the claims are getting deserialized into a complicated structure,
+    // so it's easier to transcode it into a HashMap and use it instead,
+    // but this requires an intermediate JSON serialization/deserialization.
+    // Can this be done without?
+
+    let claims_str = serde_json::to_string(&token.claims).unwrap();
+    tracing::info!("claims: {}", claims_str);
+    let claims_map: HashMap<String, Value> = serde_json::from_str(&claims_str).unwrap();
+
+    for (claim_name, header_name) in state.claim_mapping.iter() {
+        if let Some(value) = claims_map.get(claim_name) {
+            headers.insert(
+                header_name,
+                HeaderValue::from_str(&serde_json::to_string(value).unwrap()).unwrap(),
+            );
+        }
+    }
 }
 
 async fn try_refreshing_token(
