@@ -16,7 +16,7 @@ impl AuthTokenCookie {
     pub fn to_cookie(&self) -> String {
         use base64::prelude::*;
         let raw = serde_json::to_string(&self).expect("failed to serialize token as JSON");
-        let compressed = deflate::deflate_bytes(&raw.as_bytes());
+        let compressed = deflate::deflate_bytes(raw.as_bytes());
         BASE64_URL_SAFE_NO_PAD.encode(&compressed)
     }
 

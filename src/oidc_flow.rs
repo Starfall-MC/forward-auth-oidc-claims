@@ -92,7 +92,8 @@ fn cookie_wipeout(state: AppState) -> CookieJar {
 }
 
 fn error_as_human(state: AppState, error: &str) -> impl IntoResponse {
-    let mut text = format!("<html><body><h1>Sorry, an error occurred while logging you in.</h1>");
+    let mut text =
+        "<html><body><h1>Sorry, an error occurred while logging you in.</h1>".to_string();
     text += &format!("<p>The error was: <code>{}</code>.</p>", error);
 
     text += "<p>You can try logging in again by proceeding to <a href=\"";
@@ -120,7 +121,8 @@ fn error_as_human_ctx<T: std::error::Error>(
     error: &str,
     internal: &T,
 ) -> impl IntoResponse {
-    let mut text = format!("<html><body><h1>Sorry, an error occurred while logging you in.</h1>");
+    let mut text =
+        "<html><body><h1>Sorry, an error occurred while logging you in.</h1>".to_string();
     text += &format!(
         "<p>The error was: <code>{}</code>; it was caused by:</p>",
         error

@@ -148,7 +148,7 @@ async fn try_refreshing_token(
     // TODO: replace this with a global client
     match state
         .client
-        .exchange_refresh_token(&refresh_token)
+        .exchange_refresh_token(refresh_token)
         .request_async(|v| state.async_http_client(v))
         .await
     {
@@ -160,7 +160,7 @@ async fn try_refreshing_token(
                     .unwrap_or(HeaderValue::from_static("non-ascii error")),
             );
 
-            return None;
+            None
         }
 
         Ok(resp) => {
