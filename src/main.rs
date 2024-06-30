@@ -21,6 +21,7 @@ mod cookie;
 mod oidc_flow;
 mod validate;
 
+mod drop_claims;
 #[cfg(feature = "enrichment")]
 mod enrichment;
 
@@ -30,6 +31,7 @@ pub struct AppState {
     pub app_url: String,
     pub oidc_path: String,
     pub scopes: Vec<String>,
+    pub drop_claims: Vec<String>,
 
     pub cookie_key: Key,
     pub cookie_prefix: String,
@@ -167,6 +169,7 @@ async fn main() {
         app_url: args.url,
         oidc_path: args.oidc_path.clone(),
         scopes: args.scopes,
+        drop_claims: args.drop_claims,
 
         cookie_key,
         cookie_prefix: args.cookie_prefix,

@@ -44,18 +44,26 @@ pub struct Args {
     #[clap(long = "cookie-path", short = 'P', default_value = "/")]
     pub cookie_path: String,
 
-    /// Claim mapping: like email:X-Client-Email. Can be specified multiple times
-    #[clap(long = "claim-mapping", short = 'm', action = clap::ArgAction::Append)]
+    /// Claim mapping: like email:X-Client-Email. Comma-separated list
+    #[clap(long = "claim-mapping", short = 'm', value_delimiter = ',', num_args=0..)]
     pub claim_mapping: Vec<String>,
 
-    /// Which scopes to request from the identity provider (start with openid). Can be specified multiple times
-    #[clap(long = "scope", short = 'S', action = clap::ArgAction::Append)]
+    /// Which scopes to request from the identity provider (try 'openid' if none required). Comma-separated list
+    #[clap(long = "scopes", short = 'S', value_delimiter = ',', num_args=1..)]
     pub scopes: Vec<String>,
+
+    /// Which claims to drop from the token after receiving them from the identity provider.
+    /// Note that some claims are critical, so they will not be dropped even if they are listed here.
+    /// Comma-separated list
+    #[clap(long = "drop-claims", short = 'd', value_delimiter = ',', num_args=0..)]
+    pub drop_claims: Vec<String>,
 
     /// Enrichment URL for claims. If provided, when getting a token, it will be POSTed to this URL,
     /// then replaced with the response.
     /// So, the endpoint must return a copy of all the incoming claims,
     /// unless it wants to remove some of them.
+    /// Note that this is before claims are dropped:
+    /// any added ones could be dropped if listed in `drop-claims`.
     #[cfg(feature = "enrichment")]
     #[clap(long = "enrich_url", short = 'e')]
     pub enrich_url: Option<String>,

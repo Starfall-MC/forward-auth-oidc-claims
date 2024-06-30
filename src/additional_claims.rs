@@ -13,7 +13,7 @@ use openidconnect::{
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct AllOtherClaims(HashMap<String, serde_json::Value>);
+pub struct AllOtherClaims(pub HashMap<String, serde_json::Value>);
 impl AdditionalClaims for AllOtherClaims {}
 
 pub type MyIdTokenFields = IdTokenFields<

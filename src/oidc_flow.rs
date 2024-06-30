@@ -8,6 +8,7 @@ use openidconnect::core::CoreResponseType;
 use openidconnect::{AuthorizationCode, CsrfToken, Nonce, Scope};
 
 use crate::cookie::AuthTokenCookie;
+use crate::drop_claims::drop_claims;
 use crate::enrichment::enrich_claims;
 use crate::AppState;
 
@@ -332,6 +333,8 @@ async fn authorize(
             }
         }
     };
+
+    let packed_token = drop_claims(packed_token, &state.drop_claims);
 
     let make_cookie_only_name = |name| Cookie::from(format!("{}{name}", state.cookie_prefix));
 
