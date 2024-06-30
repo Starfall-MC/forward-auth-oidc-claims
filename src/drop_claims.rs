@@ -43,28 +43,11 @@ pub fn drop_claims(token: AuthTokenCookie, which: &[String]) -> AuthTokenCookie 
 mod tests {
     use std::collections::HashMap;
 
-    use openidconnect::{
-        AccessToken, Audience, IdTokenClaims, IssuerUrl, StandardClaims, SubjectIdentifier,
-    };
-
-    use crate::additional_claims::AllOtherClaims;
-
     use super::*;
 
     #[test]
     fn test_drop_claims() {
-        let token = AuthTokenCookie {
-            acc: AccessToken::new("null".to_string()),
-            refr: Default::default(),
-            claims: IdTokenClaims::new(
-                IssuerUrl::new("https://example.com".to_string()).unwrap(),
-                vec![Audience::new("aud".to_string())],
-                Default::default(),
-                Default::default(),
-                StandardClaims::new(SubjectIdentifier::new("sub".to_string())),
-                AllOtherClaims(HashMap::new()),
-            ),
-        };
+        let token = AuthTokenCookie::test_value();
 
         // Gather all keys
         let token_json = serde_json::to_string(&token).unwrap();

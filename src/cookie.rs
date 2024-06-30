@@ -16,6 +16,12 @@ pub struct AuthTokenCookie {
     pub claims: IdTokenClaims<AllOtherClaims, CoreGenderClaim>,
 }
 
+// TODO: I tried, but I can't use MessagePack, BSON, CBOR, because they have problems deserializing
+// the structure of this
+// But JSON cookies are huge, so we need to serialize them to a smaller size
+// But using base65536 didn't work
+// Figure out some better way than JSON+deflate?
+
 impl AuthTokenCookie {
     pub fn to_cookie(&self) -> String {
         use base64::prelude::*;
@@ -52,5 +58,40 @@ impl AuthTokenCookie {
             refr: refresh.cloned(),
             claims: claims.clone(),
         }
+    }
+
+    #[cfg(test)]
+    pub fn test_value() -> Self {
+        use std::collections::HashMap;
+
+        use openidconnect::{Audience, IssuerUrl, StandardClaims, SubjectIdentifier};
+
+        AuthTokenCookie {
+            acc: AccessToken::new("null".to_string()),
+            refr: Default::default(),
+            claims: IdTokenClaims::new(
+                IssuerUrl::new("https://example.com".to_string()).unwrap(),
+                vec![Audience::new("aud".to_string())],
+                Default::default(),
+                Default::default(),
+                StandardClaims::new(SubjectIdentifier::new("sub".to_string())),
+                AllOtherClaims(HashMap::new()),
+            ),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn test_auth_token_cookie_serde() {
+        let token = super::AuthTokenCookie::test_value();
+        let str = serde_json::to_string(&token).unwrap();
+        println!("str: {}", str);
+
+        let cookie = token.to_cookie();
+        println!("cookie: {}", cookie);
+        let _new_token = super::AuthTokenCookie::from_cookie(cookie).unwrap();
     }
 }
