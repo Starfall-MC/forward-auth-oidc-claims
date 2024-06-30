@@ -19,7 +19,10 @@ mod additional_claims;
 mod args;
 mod cookie;
 mod oidc_flow;
-pub mod validate;
+mod validate;
+
+#[cfg(feature = "enrichment")]
+mod enrichment;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -35,6 +38,8 @@ pub struct AppState {
     pub claim_mapping: HashMap<String, HeaderName>,
 
     pub http_client: reqwest::Client,
+    #[cfg(feature = "enrichment")]
+    pub enrich_url: Option<String>,
 }
 
 impl AppState {
@@ -169,6 +174,9 @@ async fn main() {
 
         claim_mapping,
         http_client,
+
+        #[cfg(feature = "enrichment")]
+        enrich_url: args.enrich_url,
     };
 
     let app: Router = axum::Router::new()

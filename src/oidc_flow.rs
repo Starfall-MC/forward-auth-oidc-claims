@@ -8,6 +8,7 @@ use openidconnect::core::CoreResponseType;
 use openidconnect::{AuthorizationCode, CsrfToken, Nonce, Scope};
 
 use crate::cookie::AuthTokenCookie;
+use crate::enrichment::enrich_claims;
 use crate::AppState;
 
 // pub fn make_router() -> axum::Router<AppState> {
@@ -315,15 +316,29 @@ async fn authorize(
         .build()
     };
 
+    let packed_token = AuthTokenCookie::from_token_response(&token, &state, &nonce);
+
+    #[cfg(feature = "enrichment")]
+    let packed_token = {
+        match enrich_claims(&packed_token, &state).await {
+            Ok(v) => v,
+            Err(why) => {
+                return error_as_human_ctx(
+                    state,
+                    "After a successful OIDC flow, failed to enrich returned claims. This is an internal server error.",
+                    &why,
+                )
+                .into_response()
+            }
+        }
+    };
+
     let make_cookie_only_name = |name| Cookie::from(format!("{}{name}", state.cookie_prefix));
 
     let jar = jar.remove(make_cookie_only_name("csrf"));
     // let jar = jar.remove(make_cookie_only_name("nonce"));
     let jar = jar.remove(make_cookie_only_name("src_url"));
-    let jar = jar.add(make_cookie(
-        "token",
-        &AuthTokenCookie::from_token_response(&token, &state, &nonce).to_cookie(),
-    ));
+    let jar = jar.add(make_cookie("token", &packed_token.to_cookie()));
 
     tracing::debug!("OIDC flow completed successfully, redir to {:?}", src_url);
     // We have ensured that the cookie only contains the path-and-query.

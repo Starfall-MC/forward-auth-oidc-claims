@@ -51,4 +51,12 @@ pub struct Args {
     /// Which scopes to request from the identity provider (start with openid). Can be specified multiple times
     #[clap(long = "scope", short = 'S', action = clap::ArgAction::Append)]
     pub scopes: Vec<String>,
+
+    /// Enrichment URL for claims. If provided, when getting a token, it will be POSTed to this URL,
+    /// then replaced with the response.
+    /// So, the endpoint must return a copy of all the incoming claims,
+    /// unless it wants to remove some of them.
+    #[cfg(feature = "enrichment")]
+    #[clap(long = "enrich_url", short = 'e')]
+    pub enrich_url: Option<String>,
 }

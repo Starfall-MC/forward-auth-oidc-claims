@@ -14,6 +14,7 @@ use openidconnect::Nonce;
 use serde_json::Value;
 
 use crate::cookie::AuthTokenCookie;
+use crate::enrichment::enrich_claims;
 use crate::AppState;
 
 /// Read the user's cookie
@@ -189,7 +190,22 @@ async fn try_refreshing_token(
                 HeaderValue::from_static("access token just refreshed"),
             );
 
-            Some(AuthTokenCookie::from_token_response(&resp, state, nonce))
+            let token = AuthTokenCookie::from_token_response(&resp, state, nonce);
+
+            #[cfg(feature = "enrichment")]
+            let token = match enrich_claims(&token, state).await {
+                Ok(resp) => resp,
+                Err(why) => {
+                    headers.insert(
+                        "X-Token-Error",
+                        HeaderValue::from_str(&format!("enrichment: {}", why.to_string()))
+                            .unwrap_or(HeaderValue::from_static("enricmhent: non-ascii error")),
+                    );
+                    return None;
+                }
+            };
+
+            Some(token)
         }
     }
 }

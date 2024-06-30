@@ -8,7 +8,11 @@ use crate::additional_claims::{AllOtherClaims, MyTokenResponse};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuthTokenCookie {
     pub acc: AccessToken,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub refr: Option<RefreshToken>,
+
+    #[serde(flatten)]
     pub claims: IdTokenClaims<AllOtherClaims, CoreGenderClaim>,
 }
 
